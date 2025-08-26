@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sensor Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --bg-secondary: #0f1419;
+      --card-bg: rgba(255, 255, 255, 0.08);
+      --card-border: rgba(255, 255, 255, 0.18);
+      --text-primary: #ffffff;
+      --text-secondary: rgba(255, 255, 255, 0.7);
+      --accent-1: #00f5ff;
+      --accent-2: #ff006e;
+      --accent-3: #8338ec;
+      --accent-4: #ffbe0b;
+      --shadow-light: rgba(255, 255, 255, 0.1);
+      --shadow-dark: rgba(0, 0, 0, 0.3);
+      --radius: 20px;
+      --glow: 0 0 20px rgba(0, 245, 255, 0.3);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg-secondary);
+      background-image: 
+        radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.3) 0%, transparent 50%),
+        radial-gradient(circle at 40% 40%, rgba(120, 200, 255, 0.2) 0%, transparent 50%);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
+    }
+
+    @keyframes glow-pulse {
+      0%, 100% { box-shadow: 0 0 20px rgba(0, 245, 255, 0.2); }
+      50% { box-shadow: 0 0 40px rgba(0, 245, 255, 0.4); }
+    }
+
+    header {
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--card-border);
+      color: var(--text-primary);
+      padding: 2rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+      animation: shimmer 3s infinite;
+    }
+
+    @keyframes shimmer {
+      0% { left: -100%; }
+      100% { left: 100%; }
+    }
+
+    .header-title {
+      font-size: 2.5rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-1), var(--accent-2), var(--accent-3));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: 2px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .header-subtitle {
+      margin-top: 0.5rem;
+      font-size: 1rem;
+      color: var(--text-secondary);
+      letter-spacing: 1px;
+    }
+
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+      gap: 2rem;
+      padding: 3rem 2rem;
+      max-width: 1400px;
+      margin: auto;
+    }
+
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 2rem;
+      position: relative;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent-1), var(--accent-2), var(--accent-3), var(--accent-4));
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-8px) scale(1.02);
+      box-shadow: 
+        0 20px 40px rgba(0, 0, 0, 0.4),
+        0 0 60px rgba(0, 245, 255, 0.2);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .card:hover::before {
+      opacity: 1;
+    }
+
+    .card:nth-child(1) {
+      animation: float 6s ease-in-out infinite;
+      animation-delay: 0s;
+    }
+
+    .card:nth-child(2) {
+      animation: float 6s ease-in-out infinite;
+      animation-delay: 2s;
+    }
+
+    .card:nth-child(3) {
+      animation: float 6s ease-in-out infinite;
+      animation-delay: 4s;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      position: relative;
+      z-index: 2;
+    }
+
+    .card-icon {
+      font-size: 1.5rem;
+      margin-right: 0.75rem;
+      filter: drop-shadow(0 0 10px currentColor);
+    }
+
+    .card h3 {
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: 0.5px;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 320px;
+      margin-top: 1rem;
+    }
+
+    canvas {
+      width: 100% !important;
+      height: 100% !important;
+      border-radius: 12px;
+    }
+
+    .stats-overlay {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      backdrop-filter: blur(10px);
+    }
+
+    @media (max-width: 768px) {
+      .header-title {
+        font-size: 2rem;
+      }
+      
+      .dashboard {
+        grid-template-columns: 1fr;
+        padding: 2rem 1rem;
+        gap: 1.5rem;
+      }
+      
+      .card {
+        padding: 1.5rem;
+      }
+      
+      .chart-container {
+        height: 280px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .header-title {
+        font-size: 1.6rem;
+        letter-spacing: 1px;
+      }
+      
+      .card h3 {
+        font-size: 1.1rem;
+      }
+    }
+
+    /* Scrollbar customization */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg-secondary);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--accent-1);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent-2);
+    }
+
+    /* Table Styles */
+    .table-section {
+      padding: 0 2rem 3rem;
+      max-width: 1400px;
+      margin: auto;
+    }
+
+    .table-card {
+      margin-top: 0;
+      animation: none;
+    }
+
+    .table-controls {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-left: auto;
+    }
+
+    .export-btn {
+      background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-weight: 500;
+    }
+
+    .export-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 20px rgba(0, 245, 255, 0.4);
+    }
+
+    .search-box {
+      position: relative;
+    }
+
+    .search-box input {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      padding: 0.5rem 2.5rem 0.5rem 1rem;
+      color: var(--text-primary);
+      font-size: 0.9rem;
+      width: 200px;
+      transition: all 0.3s ease;
+    }
+
+    .search-box input:focus {
+      outline: none;
+      border-color: var(--accent-1);
+      box-shadow: 0 0 0 2px rgba(0, 245, 255, 0.2);
+    }
+
+    .search-box input::placeholder {
+      color: var(--text-secondary);
+    }
+
+    .search-icon {
+      position: absolute;
+      right: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-secondary);
+      pointer-events: none;
+    }
+
+    .table-container {
+      overflow-x: auto;
+      margin-top: 1rem;
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    #dataTable {
+      width: 100%;
+      border-collapse: collapse;
+      background: transparent;
+    }
+
+    #dataTable thead {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+    }
+
+    #dataTable th {
+      padding: 1rem;
+      text-align: left;
+      color: var(--text-primary);
+      font-weight: 600;
+      font-size: 0.9rem;
+      border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+      letter-spacing: 0.5px;
+    }
+
+    #dataTable th:first-child {
+      border-top-left-radius: 12px;
+    }
+
+    #dataTable th:last-child {
+      border-top-right-radius: 12px;
+    }
+
+    #dataTable td {
+      padding: 0.75rem 1rem;
+      color: var(--text-secondary);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      transition: background-color 0.2s ease;
+    }
+
+    #dataTable tbody tr:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    #dataTable tbody tr:nth-child(even) {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .loading {
+      text-align: center;
+      color: var(--text-secondary);
+      font-style: italic;
+    }
+
+    .table-pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 1rem;
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .page-btn {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-primary);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-size: 0.9rem;
+    }
+
+    .page-btn:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: var(--accent-1);
+    }
+
+    .page-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    #pageInfo {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      min-width: 100px;
+      text-align: center;
+    }
+
+    @media (max-width: 768px) {
+      .table-section {
+        padding: 0 1rem 2rem;
+      }
+
+      .table-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+        margin-left: 0;
+        margin-top: 1rem;
+      }
+
+      .search-box input {
+        width: 100%;
+      }
+
+      .table-container {
+        font-size: 0.85rem;
+      }
+
+      #dataTable th,
+      #dataTable td {
+        padding: 0.5rem;
+      }
+
+      .table-pagination {
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-title">⚡ SENSOR NEXUS</div>
+    <div class="header-subtitle">Real-time Environmental Monitoring</div>
+  </header>
+
+  <div class="dashboard">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon" style="color: #ff6b6b;">🌡️</span>
+        <h3>Temperature Analytics</h3>
+      </div>
+      <div class="chart-container">
+        <canvas id="tempChart"></canvas>
+        <div class="stats-overlay" id="tempStats">Loading...</div>
+      </div>
+    </div>
+    
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon" style="color: #4ecdc4;">💧</span>
+        <h3>Humidity Monitoring</h3>
+      </div>
+      <div class="chart-container">
+        <canvas id="humidChart"></canvas>
+        <div class="stats-overlay" id="humidStats">Loading...</div>
+      </div>
+    </div>
+    
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon" style="color: #a8e6cf;">📡</span>
+        <h3>Distance Tracking</h3>
+      </div>
+      <div class="chart-container">
+        <canvas id="distChart"></canvas>
+        <div class="stats-overlay" id="distStats">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-section">
+    <div class="card table-card">
+      <div class="card-header">
+        <span class="card-icon" style="color: #ffd93d;">📊</span>
+        <h3>Raw Sensor Data</h3>
+        <div class="table-controls">
+          <button id="exportBtn" class="export-btn">💾 Export CSV</button>
+          <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Search data..." />
+            <span class="search-icon">🔍</span>
+          </div>
+        </div>
+      </div>
+      <div class="table-container">
+        <table id="dataTable">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Temperature (°C)</th>
+              <th>Humidity (%)</th>
+              <th>Distance (cm)</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr><td colspan="4" class="loading">Loading data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="table-pagination">
+        <button id="prevBtn" class="page-btn">‹ Previous</button>
+        <span id="pageInfo">Page 1 of 1</span>
+        <button id="nextBtn" class="page-btn">Next ›</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Global variables for table functionality
+    let allData = [];
+    let filteredData = [];
+    let currentPage = 1;
+    const rowsPerPage = 15;
+
+    async function loadCSVData() {
+      try {
+        const response = await fetch("sensor_log.csv");
+        const text = await response.text();
+        const rows = text.trim().split("\n");
+        const headers = rows[0].split(",");
+
+        const timestamps = [];
+        const humidities = [];
+        const temperatures = [];
+        const distances = [];
+        allData = [];
+
+        for (let i = 1; i < rows.length; i++) {
+          const cols = rows[i].split(",");
+          if (cols.length !== 4) continue;
+
+          const [time, humid, temp, dist] = cols;
+          const timeObj = new Date(time);
+          
+          timestamps.push(timeObj.toLocaleTimeString());
+          humidities.push(parseFloat(humid));
+          temperatures.push(parseFloat(temp));
+          distances.push(parseFloat(dist));
+          
+          allData.push({
+            timestamp: timeObj.toLocaleString(),
+            temperature: parseFloat(temp),
+            humidity: parseFloat(humid),
+            distance: parseFloat(dist)
+          });
+        }
+
+        createChart("tempChart", "Temperature (°C)", timestamps, temperatures, {
+          gradient: ['#ff6b6b', '#ff8e8e'],
+          statsId: 'tempStats',
+          unit: '°C'
+        });
+        
+        createChart("humidChart", "Humidity (%)", timestamps, humidities, {
+          gradient: ['#4ecdc4', '#7fdbda'],
+          statsId: 'humidStats',
+          unit: '%'
+        });
+        
+        createChart("distChart", "Distance (cm)", timestamps, distances, {
+          gradient: ['#a8e6cf', '#c8f0d4'],
+          statsId: 'distStats',
+          unit: 'cm'
+        });
+
+        populateTable();
+
+      } catch (error) {
+        console.log('CSV file not found, using demo data');
+        createDemoData();
+      }
+    }
+
+    function createDemoData() {
+      const timestamps = [];
+      const temperatures = [];
+      const humidities = [];
+      const distances = [];
+      allData = [];
+
+      for (let i = 0; i < 50; i++) {
+        const time = new Date(Date.now() - (49 - i) * 60000);
+        timestamps.push(time.toLocaleTimeString());
+        
+        const temp = 20 + Math.sin(i * 0.3) * 5 + Math.random() * 2;
+        const humid = 60 + Math.cos(i * 0.4) * 15 + Math.random() * 5;
+        const dist = 100 + Math.sin(i * 0.2) * 30 + Math.random() * 10;
+        
+        temperatures.push(temp);
+        humidities.push(humid);
+        distances.push(dist);
+        
+        allData.push({
+          timestamp: time.toLocaleString(),
+          temperature: parseFloat(temp.toFixed(1)),
+          humidity: parseFloat(humid.toFixed(1)),
+          distance: parseFloat(dist.toFixed(1))
+        });
+      }
+
+      createChart("tempChart", "Temperature (°C)", timestamps, temperatures, {
+        gradient: ['#ff6b6b', '#ff8e8e'],
+        statsId: 'tempStats',
+        unit: '°C'
+      });
+      
+      createChart("humidChart", "Humidity (%)", timestamps, humidities, {
+        gradient: ['#4ecdc4', '#7fdbda'],
+        statsId: 'humidStats',
+        unit: '%'
+      });
+      
+      createChart("distChart", "Distance (cm)", timestamps, distances, {
+        gradient: ['#a8e6cf', '#c8f0d4'],
+        statsId: 'distStats',
+        unit: 'cm'
+      });
+
+      populateTable();
+    }
+
+    function createChart(canvasId, label, labels, data, config) {
+      const canvas = document.getElementById(canvasId);
+      const ctx = canvas.getContext('2d');
+      
+      // Create gradient
+      const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+      gradient.addColorStop(0, config.gradient[0] + 'AA');
+      gradient.addColorStop(1, config.gradient[0] + '00');
+
+      const borderGradient = ctx.createLinearGradient(0, 0, 0, 300);
+      borderGradient.addColorStop(0, config.gradient[0]);
+      borderGradient.addColorStop(1, config.gradient[1]);
+
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: label,
+            data: data,
+            fill: true,
+            borderColor: borderGradient,
+            backgroundColor: gradient,
+            borderWidth: 3,
+            tension: 0.4,
+            pointBackgroundColor: config.gradient[0],
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 2,
+            pointRadius: 5,
+            pointHoverRadius: 8,
+            pointHoverBackgroundColor: config.gradient[0],
+            pointHoverBorderColor: '#ffffff',
+            pointHoverBorderWidth: 3
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            intersect: false,
+            mode: 'index'
+          },
+          plugins: {
+            legend: { 
+              display: false 
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              titleColor: '#ffffff',
+              bodyColor: '#ffffff',
+              borderColor: config.gradient[0],
+              borderWidth: 1,
+              cornerRadius: 8,
+              displayColors: false
+            }
+          },
+          scales: {
+            x: {
+              grid: {
+                color: 'rgba(255, 255, 255, 0.1)',
+                borderColor: 'rgba(255, 255, 255, 0.2)'
+              },
+              ticks: {
+                color: 'rgba(255, 255, 255, 0.7)',
+                maxTicksLimit: 8
+              }
+            },
+            y: {
+              grid: {
+                color: 'rgba(255, 255, 255, 0.1)',
+                borderColor: 'rgba(255, 255, 255, 0.2)'
+              },
+              ticks: {
+                color: 'rgba(255, 255, 255, 0.7)'
+              }
+            }
+          },
+          animation: {
+            duration: 2000,
+            easing: 'easeInOutQuart'
+          }
+        }
+      });
+
+      // Update stats
+      updateStats(config.statsId, data, config.unit);
+    }
+
+    function updateStats(statsId, data, unit) {
+      const avg = (data.reduce((a, b) => a + b, 0) / data.length).toFixed(1);
+      const max = Math.max(...data).toFixed(1);
+      const min = Math.min(...data).toFixed(1);
+      
+      document.getElementById(statsId).innerHTML = `
+        Avg: ${avg}${unit} | Max: ${max}${unit} | Min: ${min}${unit}
+      `;
+    }
+
+    function populateTable() {
+      filteredData = [...allData];
+      currentPage = 1;
+      renderTable();
+      setupTableControls();
+    }
+
+    function renderTable() {
+      const tableBody = document.getElementById('tableBody');
+      const startIndex = (currentPage - 1) * rowsPerPage;
+      const endIndex = startIndex + rowsPerPage;
+      const pageData = filteredData.slice(startIndex, endIndex);
+
+      if (pageData.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="4" class="loading">No data available</td></tr>';
+        return;
+      }
+
+      tableBody.innerHTML = pageData.map(row => `
+        <tr>
+          <td>${row.timestamp}</td>
+          <td>${row.temperature}°C</td>
+          <td>${row.humidity}%</td>
+          <td>${row.distance} cm</td>
+        </tr>
+      `).join('');
+
+      updatePagination();
+    }
+
+    function updatePagination() {
+      const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+      const prevBtn = document.getElementById('prevBtn');
+      const nextBtn = document.getElementById('nextBtn');
+      const pageInfo = document.getElementById('pageInfo');
+
+      prevBtn.disabled = currentPage === 1;
+      nextBtn.disabled = currentPage === totalPages || totalPages === 0;
+      
+      if (totalPages === 0) {
+        pageInfo.textContent = 'No data';
+      } else {
+        pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+      }
+    }
+
+    function setupTableControls() {
+      // Search functionality
+      const searchInput = document.getElementById('searchInput');
+      searchInput.addEventListener('input', (e) => {
+        const searchTerm = e.target.value.toLowerCase();
+        filteredData = allData.filter(row => 
+          row.timestamp.toLowerCase().includes(searchTerm) ||
+          row.temperature.toString().includes(searchTerm) ||
+          row.humidity.toString().includes(searchTerm) ||
+          row.distance.toString().includes(searchTerm)
+        );
+        currentPage = 1;
+        renderTable();
+      });
+
+      // Pagination controls
+      document.getElementById('prevBtn').addEventListener('click', () => {
+        if (currentPage > 1) {
+          currentPage--;
+          renderTable();
+        }
+      });
+
+      document.getElementById('nextBtn').addEventListener('click', () => {
+        const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+        if (currentPage < totalPages) {
+          currentPage++;
+          renderTable();
+        }
+      });
+
+      // Export functionality
+      document.getElementById('exportBtn').addEventListener('click', () => {
+        exportToCSV();
+      });
+    }
+
+    function exportToCSV() {
+      const headers = ['Timestamp', 'Temperature (°C)', 'Humidity (%)', 'Distance (cm)'];
+      const csvContent = [
+        headers.join(','),
+        ...filteredData.map(row => 
+          `"${row.timestamp}",${row.temperature},${row.humidity},${row.distance}`
+        )
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `sensor_data_export_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // Initialize dashboard
+    loadCSVData();
+  </script>
+</body>
+</html>
